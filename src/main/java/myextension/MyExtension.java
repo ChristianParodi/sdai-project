@@ -9,6 +9,6 @@ import java.util.List;
 public class MyExtension extends DefaultClassManager {
     @Override
     public void load(PrimitiveManager primitiveManager) {
-        primitiveManager.addPrimitive("sayhi", new IntegerList());
+        primitiveManager.addPrimitive("say-hi", new IntegerList());
     }
 }

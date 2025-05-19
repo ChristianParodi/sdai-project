@@ -1,0 +1,1 @@
+cd target && jar cvfm MyExtension.jar ../manifest.txt -C classes/ .
