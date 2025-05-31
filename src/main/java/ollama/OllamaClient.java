@@ -10,16 +10,32 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+import java.util.*;
+import java.util.stream.*;
 
 public class OllamaClient {
     private static String uri = "http://localhost:11434/api/generate";
     private static String model = "llama3.2:3b";
     private static HttpClient client = HttpClient.newHttpClient();
+    public static final OllamaClient INSTANCE = new OllamaClient();
+
+    private OllamaClient() {}
+
+    public static OllamaClient getInstance() {
+        return INSTANCE;
+    }
+
+    public Stream<TokenData> ask(String prompt, List<String> history) throws Exception {
+        // combine history if needed:
+        StringBuilder fullPrompt = new StringBuilder();
+        for (String line : history) {
+            fullPrompt.append(line).append("\n");
+        }
+        fullPrompt.append("You: ").append(prompt).append("\n");
+
+        // use your stream-based Ollama client here (stream or full response)
+        return OllamaClient.getInstance().generate(fullPrompt.toString());
+    }
 
     private static class StreamChunk {
         String response;
@@ -41,16 +57,31 @@ public class OllamaClient {
 
         Gson gson = new Gson();
 
+        Iterator<TokenData> iterator = getTokenDataIterator(reader, gson);
+
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED),
+                false
+        ).onClose(() -> {
+            try {
+                reader.close();
+            } catch (IOException ignored) {}
+        });
+    }
+
+    /*
+    *   Iterator definition for TokenData
+    */
+    private static Iterator<TokenData> getTokenDataIterator(BufferedReader reader, Gson gson) {
         Iterator<TokenData> iterator = new Iterator<>() {
             String nextLine = null;
 
             @Override
             public boolean hasNext() {
                 try {
-                    nextLine = reader.readLine();
-                    while (nextLine != null && nextLine.trim().isEmpty()) {
+                    do {
                         nextLine = reader.readLine();
-                    }
+                    } while (nextLine != null && nextLine.trim().isEmpty());
                     return nextLine != null;
                 } catch (IOException e) {
                     return false;
@@ -67,15 +98,7 @@ public class OllamaClient {
                 }
             }
         };
-
-        return StreamSupport.stream(
-                Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED),
-                false
-        ).onClose(() -> {
-            try {
-                reader.close();
-            } catch (IOException ignored) {}
-        });
+        return iterator;
     }
 
     public static void main(String[] args) throws Exception {
