@@ -4,8 +4,23 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <repositories>
+        <repository>
+            <id>netlogo</id>
+            <name>NetLogo Repository</name>
+            <url>https://dl.cloudsmith.io/public/netlogo/netlogo/maven/</url>
+            <layout>default</layout>
+        </repository>
+        <repository>
+            <id>jogamp</id>
+            <name>JogAmp Repository</name>
+            <url>https://jogamp.org/deployment/maven/</url>
+            <layout>default</layout>
+        </repository>
+    </repositories>
+
     <groupId>org.example</groupId>
-    <artifactId>MyExtension</artifactId>
+    <artifactId>llm</artifactId>
     <version>1</version>
 
     <properties>
