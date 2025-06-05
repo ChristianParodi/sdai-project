@@ -12,6 +12,6 @@ public class LLMCreateSession implements Reporter {
 
     @Override
     public Syntax getSyntax() {
-        return SyntaxJ.reporterSyntax(new int[] {}, Syntax.AgentType());
+        return SyntaxJ.reporterSyntax(new int[] {}, Syntax.WildcardType());
     }
 }

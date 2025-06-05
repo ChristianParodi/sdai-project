@@ -14,9 +14,9 @@ import java.util.*;
 import java.util.stream.*;
 
 public class OllamaClient {
-    private static String uri = "http://localhost:11434/api/generate";
-    private static String model = "llama3.2:3b";
-    private static HttpClient client = HttpClient.newHttpClient();
+    private static String API_URI = "http://localhost:11434/api/generate";
+    private static String MODEL = "llama3.2:3b";
+    private static HttpClient CLIENT = HttpClient.newHttpClient();
     public static final OllamaClient INSTANCE = new OllamaClient();
 
     private OllamaClient() {}
@@ -29,9 +29,9 @@ public class OllamaClient {
         // combine history if needed:
         StringBuilder fullPrompt = new StringBuilder();
         for (String line : history) {
-            fullPrompt.append(line).append("\n");
+            fullPrompt.append(line).append("\\n");
         }
-        fullPrompt.append("You: ").append(prompt).append("\n");
+        fullPrompt.append("You: ").append(prompt).append("\\n");
 
         // use your stream-based Ollama client here (stream or full response)
         return OllamaClient.getInstance().generate(fullPrompt.toString());
@@ -42,15 +42,36 @@ public class OllamaClient {
     }
 
     public static Stream<TokenData> generate(String prompt) throws Exception {
-        String json = "{\"model\":\"" + OllamaClient.model + "\",\"prompt\":\"" + prompt + "\",\"stream\":true}";
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("model", OllamaClient.MODEL);
+        jsonObject.addProperty("prompt", prompt);
+        jsonObject.addProperty("stream", false);
+        String json = new Gson().toJson(jsonObject);
+
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(new URI(OllamaClient.uri))
+                .uri(new URI(OllamaClient.API_URI))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<java.io.InputStream> response = OllamaClient.client.send(
+        HttpResponse<java.io.InputStream> response = OllamaClient.CLIENT.send(
                 request, HttpResponse.BodyHandlers.ofInputStream());
+
+        var statusCode = response.statusCode();
+
+        if(statusCode != 200) {
+            BufferedReader errReader = new BufferedReader(
+                    new InputStreamReader(response.body(), StandardCharsets.UTF_8));
+            StringBuilder sbErr = new StringBuilder();
+            String errLine;
+            while ((errLine = errReader.readLine()) != null) {
+                sbErr.append(errLine).append("\n");
+            }
+            System.err.println("Ollama Error Body:\n" + sbErr);  // Print JSON error (often contains {"error": ...})
+            return Stream.empty();  // return empty stream instead of null :contentReference[oaicite:5]{index=5}
+        }
+
+        // render \\n into \n
 
         BufferedReader reader = new BufferedReader(
                 new InputStreamReader(response.body(), StandardCharsets.UTF_8));
@@ -103,7 +124,13 @@ public class OllamaClient {
 
     public static void main(String[] args) throws Exception {
         String prompt = "Hey, how are you?";
-        generate(prompt)
-                .forEach(token -> System.out.print(token.getToken()));
+        try {
+            generate(prompt)
+                    .forEach(token -> System.out.print(token.getToken()));
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
     }
 }

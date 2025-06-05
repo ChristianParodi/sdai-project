@@ -1,8 +1,11 @@
 package llm;
 
+import ollama.TokenData;
 import org.nlogo.api.*;
 import org.nlogo.api.Reporter;
 import org.nlogo.core.*;
+
+import java.util.stream.Stream;
 
 public class LLMAskSync implements Reporter {
     @Override
@@ -10,13 +13,15 @@ public class LLMAskSync implements Reporter {
         ChatSession session = (ChatSession) args[0].get();
         String prompt = args[1].getString();
         StringBuilder builder = new StringBuilder();
-        session.ask(prompt).forEach(token -> builder.append(token.getToken()));
-        return builder.toString();
+        Stream<TokenData> tokens = session.ask(prompt);
+        tokens.forEach(token -> builder.append(token.getToken()));
+        String reply = builder.toString();
+        return reply;
     }
 
     @Override
     public Syntax getSyntax() {
-        int[] input = new int[] {Syntax.AgentType(), Syntax.StringType()};
+        int[] input = new int[] {Syntax.WildcardType(), Syntax.StringType()};
         int output = Syntax.StringType();
         return SyntaxJ.reporterSyntax(input, output);
     }

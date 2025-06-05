@@ -20,7 +20,7 @@ public class ChatSession implements ExtensionObject {
     }
 
     // Needed for NetLogo to recognize this as a custom object
-    @Override public String getExtensionName() { return "src/llm"; }
+    @Override public String getExtensionName() { return "llm"; }
     @Override public String getNLTypeName() { return "chat"; }
     @Override public boolean recursivelyEqual(Object obj) { return false; }
     @Override public String dump(boolean readable, boolean exporting, boolean reference) { return String.join("\n", history); }
