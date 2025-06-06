@@ -7,7 +7,7 @@ import org.nlogo.core.SyntaxJ;
 public class LLMCreateSession implements Reporter {
     @Override
     public Object report(Argument[] args, Context context) throws ExtensionException {
-        return new ChatSession(); // Assuming ChatSession is your session management class
+        return new ChatSession();
     }
 
     @Override

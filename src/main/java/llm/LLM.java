@@ -8,5 +8,9 @@ public class LLM extends DefaultClassManager {
     public void load(PrimitiveManager primitiveManager) {
         primitiveManager.addPrimitive("ask", new LLMAskSync());
         primitiveManager.addPrimitive("create-session", new LLMCreateSession());
+        primitiveManager.addPrimitive("ask-async", new LLMAskAsync());
+        primitiveManager.addPrimitive("poll-conversation", new PollConversation());
+        primitiveManager.addPrimitive("conversation-complete?", new ConversationCompleteQ());
+
     }
 }

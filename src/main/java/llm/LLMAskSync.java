@@ -1,28 +1,50 @@
 package llm;
 
+import ollama.OllamaClient;
 import ollama.TokenData;
 import org.nlogo.api.*;
 import org.nlogo.api.Reporter;
 import org.nlogo.core.*;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Stream;
+
+import utils.StringUtils;
 
 public class LLMAskSync implements Reporter {
     @Override
     public Object report(Argument[] args, Context context) throws ExtensionException {
-        ChatSession session = (ChatSession) args[0].get();
-        String prompt = args[1].getString();
-        StringBuilder builder = new StringBuilder();
-        Stream<TokenData> tokens = session.ask(prompt);
-        tokens.forEach(token -> builder.append(token.getToken()));
-        String reply = builder.toString();
-        return reply;
+        try {
+            ChatSession session = (ChatSession) args[0].get();
+            String prompt = args[1].getString();
+
+            // First message
+            Map<String, String> turtleMessage = new HashMap<>();
+            turtleMessage.put("role", "turtle");
+            turtleMessage.put("content", prompt);
+
+            Stream<TokenData> responseTokens = session.ask(turtleMessage);
+
+            // collect raw answer
+            StringBuilder builder = new StringBuilder();
+            responseTokens.forEach(tokenData -> builder.append(tokenData.getToken()));
+            String rawReply = builder.toString();
+
+            // unescape and wrap
+            String unescaped = StringUtils.unescape(rawReply);
+            String wrapped = StringUtils.wrapText(unescaped, 60);
+
+            return wrapped;
+        } catch (Exception e) {
+            throw new ExtensionException(this.getClass().getSimpleName() + " error: ", e);
+        }
     }
 
     @Override
     public Syntax getSyntax() {
-        int[] input = new int[] {Syntax.WildcardType(), Syntax.StringType()};
-        int output = Syntax.StringType();
+        int[] input = new int[] { Syntax.WildcardType(), Syntax.StringType() };
+        int output  = Syntax.StringType();
         return SyntaxJ.reporterSyntax(input, output);
     }
 }
