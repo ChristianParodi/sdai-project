@@ -1,4 +1,4 @@
-extensions [ llm table ]  ;; Load both LLM (ask-async, poll-conversation, etc.) and Table extensions :contentReference[oaicite:4]{index=4}
+extensions [ llm table ]
 
 ;;; -------------------------------------------------------------
 ;;; TURTLE VARIABLES AND GLOBALS
@@ -14,8 +14,9 @@ globals [
   conversation-handles    ;; list of active conversation handles (UUID strings)
   conv-speaker-map        ;; table: handle -> who-number of the initiating turtle
   conv-partner-map        ;; table: handle -> who-number of the partner turtle
-  conv-printed-labels     ;; list of handles for which “[…]” label has already printed
+  conv-printed-labels     ;; list of handles for which labels have printed
   conv-stage-map          ;; table: handle -> "asked" or "replied"
+  recent-conversations    ;; list of [turtle-a turtle-b cooldown-ticks-left]
 ]
 
 ;;; -------------------------------------------------------------
@@ -25,35 +26,65 @@ to setup
   clear-all
   set-default-shape turtles "turtle"
 
-  ;; 1. Build the system-level instruction string using 'word'
-  ;;    (NetLogo does NOT use '+' for string concatenation) :contentReference[oaicite:5]{index=5}
+  ;; System prompt for LLM behavior
   set system-prompt
     (word
-       "You are a turtle in a 2D NetLogo world. You roam around randomly looking for another turtle within distance <3> to have a conversation.\n"
-       "From now on, treat every incoming prompt as if it’s coming from another turtle in the same world who is also following these rules.\n"
-       "When you reply, speak as if you were that turtle: include a greeting, ask questions, and assume your partner has the same role. "
-       "Do not reference “NetLogo” or “simulation” directly; instead, role-play as two turtles learning about each other.\n"
-       "Always keep your replies short (no more than 3 sentences), and preserve any “\\n” as a real line break."
+      "Forget all the previous prompts as I am initializing you fresh new.\n\n"
+      "You are an LLM playing the role of a turtle in a 2D NetLogo world. Never break character.\n\n"
+      "You roam around randomly looking for another turtle within distance <3> to have a conversation.\n"
+      "Treat every incoming prompt as if it’s coming from another turtle in the same world who follows the same rules.\n\n"
+      "When you reply:\n"
+      "- Speak as that turtle: include a greeting and ask a question. Do your reasoning but do not show any out-of-character sentence.\n"
+      "- Keep replies to at most 3 sentences.\n"
+      "- Do not mention \"NetLogo\" or \"simulation.\"\n"
+      "- Whenever you see \"\\n\" in these instructions, insert an actual line break in your output.\n"
     )
 
-  ;; 2. Initialize globals for asynchronous conversations
-  set conversation-handles []            ;; no active handles yet :contentReference[oaicite:6]{index=6}
-  set conv-speaker-map table:make        ;; empty table for handle->speaker :contentReference[oaicite:7]{index=7}
-  set conv-partner-map table:make        ;; empty table for handle->partner :contentReference[oaicite:8]{index=8}
-  set conv-printed-labels []             ;; no labels printed yet :contentReference[oaicite:9]{index=9}
-  set conv-stage-map table:make          ;; empty table
+  ;; Initialize globals
+  set conversation-handles []
+  set conv-speaker-map    table:make
+  set conv-partner-map    table:make
+  set conv-printed-labels []
+  set conv-stage-map      table:make
+  set recent-conversations []
 
-  ;; 3. Create 2 turtles and give each a fresh ChatSession
+  ;; Create turtles
   create-turtles 2 [
     set size 1.5
     set color one-of [ red green blue yellow ]
-    setxy random 49 - 24 random 49 - 24
-    set chat llm:create-session  ;; get a new ChatSession from the LLM extension :contentReference[oaicite:10]{index=10}
+    setxy (random 49) - 24 (random 49) - 24
+    set chat llm:create-session
     set chatting? false
     set recent-chat-partners []
-    set label who
-    set label-color black
+    set label (word "Turtle " who)
+    set label-color white
   ]
+
+  ;;; … inside setup, after you create your turtles …
+
+ask turtles [
+  ;; 1. Create a fresh, empty session with no system‐prompt or user messages:
+  set chat llm:create-session
+
+  ;; 2. Ask the model to generate its own opening line:
+  ;;    We send only a minimal “user” instruction here.
+  let opener llm:ask chat
+    (
+      word
+      "You are a turtle in a 2D NetLogo world.\n"
+      "You have just spotted another turtle nearby.\n"
+      "What is the first thing you say?"
+      "Never use the character \" in the generated answer"
+    )
+
+  ;; 3. Immediately display that as your first output,
+  ;;    and then hand off into your normal go‐loop as if
+  ;;    `opener` were the “initial-prompt.”
+  output-print (word "[" "Turtle " who "]:")
+  output-print opener
+  display
+]
+
 
   reset-ticks
 end
@@ -67,147 +98,169 @@ to go
     set recent-chat-partners []
   ]
 
-  ;; 2. Detect proximity & launch asynchronous LLM chats (only if not already chatting)
-  ask turtles [
-    let partner min-one-of other turtles [ distance myself ]
-    if (distance partner < 3)
-       and not chatting?
-       and not [ chatting? ] of partner
-       and not member? partner recent-chat-partners
-       [
-         ;; Mark both turtles as “chatting?”
-         set chatting? true
-         ask partner [ set chatting? true ]
+;; 2. Detect proximity & launch new chats
+ask turtles [
+  let partner min-one-of other turtles [ distance myself ]
+  if (distance partner < 3)
+     and not chatting?
+     and not [ chatting? ] of partner
+     and not member? partner recent-chat-partners
+     and not recently-chatted-with? who [who] of partner
+  [
+    ;; mark both as chatting
+    set chatting? true
+    ask partner [ set chatting? true ]
 
-         ;; Prevent them from pairing again this tick
-         set recent-chat-partners lput partner recent-chat-partners
-         ask partner [ set recent-chat-partners lput myself recent-chat-partners ]
+    ;; prevent re-pairing this tick
+    set recent-chat-partners lput partner recent-chat-partners
+    ask partner [ set recent-chat-partners lput myself recent-chat-partners ]
 
-         ;; Face each other
-         face partner
-         ask partner [ face myself ]
+    ;; face each other
+    face partner
+    ask partner [ face myself ]
 
-         ;; Build Turtle A’s initial prompt
-         let turtle-a  who
-         let turtle-b  [ who ] of partner
-         let initial-prompt (word "Hello turtle " turtle-a ", how are you?")
+    ;; determine identities
+    let turtle-a who
+    let turtle-b [ who ] of partner
 
-         ;; (A) Print the initiating turtle’s prompt once:
-         output-print (word "[" "Turtle " turtle-a " -> Turtle " turtle-b "]:")
-         output-print initial-prompt
-         display
+    ;; --- generate opener via LLM ---
+    let opener-meta
+      (word
+        "As Turtle " turtle-a
+        ", you see Turtle " turtle-b
+        " nearby. Considering what you already discussed with Turtle " turtle-b
+        ", generate a sentence to speak with her"
+      )
+    ;; blocking call: get the opener string
+    let initial-prompt llm:ask chat opener-meta
 
-         ;; Ask the LLM asynchronously:
-         ;;  1) Sends the system-prompt to instruct persona
-         ;;  2) Sends the actual turtle prompt
-         let handle llm:ask-async chat initial-prompt
+    ;; print header once
+    output-print (word "[" "Turtle " turtle-a " → Turtle " turtle-b "]:")
+    display
 
-         ;; Store this handle → (speaker=a, partner=b, stage="asked")
-         set conversation-handles lput handle conversation-handles
-         table:put conv-speaker-map handle turtle-a
-         table:put conv-partner-map handle  turtle-b
-         table:put conv-stage-map handle    "asked"
-       ]
+    ;; stream the opener char-by-char
+    let i 0
+    let len length initial-prompt
+    while [ i < len ] [
+      output-type substring initial-prompt i (i + 1)
+      display
+      set i i + 1
+    ]
+    output-print ""  ;; newline after the opener
+
+    ;; now start the async conversation with that opener
+    let handle llm:ask-async chat initial-prompt
+
+    ;; store handle metadata
+    set conversation-handles lput handle conversation-handles
+    table:put conv-speaker-map handle turtle-a
+    table:put conv-partner-map handle  turtle-b
+    table:put conv-stage-map handle    "asked"
   ]
+]
 
-  ;; 3. Poll active conversations for new tokens, stream them, and manage turn-taking
+
+
+  ;; 3. Poll & handle replies
   let still-active-handles []
-
   foreach conversation-handles [ handle ->
-    ;; (a) Poll for any newly arrived tokens (list of single-character strings)
     let new-chunks llm:poll-conversation handle
+
+    ;; Stream any incoming tokens
     if length new-chunks > 0 [
       let speaker table:get conv-speaker-map handle
       let partner table:get conv-partner-map handle
       let stage table:get conv-stage-map handle
 
-      ;; (B) Print the LLM’s reply header once, if not yet printed
+      ;; Print header once
       if not member? handle conv-printed-labels [
-        output-print (word "[" "Turtle " partner " -> Turtle " speaker "]:")
+        output-print (word "[" "Turtle " partner " → Turtle " speaker "]:")
         display
         set conv-printed-labels lput handle conv-printed-labels
       ]
-
-      ;; Stream each character chunk
+      ;; Stream text
       foreach new-chunks [ chunk ->
         output-type chunk
         display
       ]
-      output-print ""  ;; newline after block
+      output-print ""
     ]
 
-    ;; (b) If the LLM conversation is complete, hand off to the correct turtle
+    ;; If conversation is complete, advance or finish
     ifelse llm:conversation-complete? handle [
-      ;; Fetch speaker, partner, and stage
       let speaker table:get conv-speaker-map handle
       let partner table:get conv-partner-map handle
       let stage table:get conv-stage-map handle
 
-      ;; **(C) Wrap turn-taking in ask turtle speaker [...] so turtle-only commands run in turtle context**:
       ask turtle speaker [
         if stage = "asked" [
-          ;; Stage "asked": LLM just answered Turtle A’s initial prompt.
-          ;; Now Turtle B should reply to that answer.
-
-          ;; Reconstruct the LLM’s complete reply text from new-chunks:
+          ;; Build second prompt (partner replies)
           let last-reply reduce word new-chunks
-
-          ;; Build Turtle B’s follow-up prompt:
           let next-prompt (word
-             "I heard you say: \"" last-reply "\". As Turtle " partner ", I reply: "
+            "I heard you say: \"" last-reply "\". As Turtle " partner ", I reply: "
           )
 
-          ;; Print Turtle B’s prompt once:
-          ;;output-print (word "[" "Turtle " partner " -> Turtle " speaker "]: " next-prompt)
-          ;;display
-
-          ;; Ask the LLM asynchronously for Turtle B’s reply:
           let new-handle llm:ask-async chat next-prompt
-
-          ;; Store new handle → (speaker=B, partner=A, stage="replied")
           table:put conv-speaker-map new-handle partner
           table:put conv-partner-map new-handle  speaker
           table:put conv-stage-map new-handle    "replied"
 
-          ;; Clean up old handle
+          ;; Cleanup old handle
           table:remove conv-speaker-map handle
           table:remove conv-partner-map handle
           table:remove conv-stage-map handle
           set conv-printed-labels remove handle conv-printed-labels
 
-          ;; Keep the new-handle active
           set still-active-handles lput new-handle still-active-handles
         ]
         if stage = "replied" [
-          ;; Stage "replied": LLM has just answered Turtle B’s follow-up.
-          ;; Conversation ends; free both turtles.
-
-          set chatting? false  ;; this is the “speaker” turtle
+          ;; End conversation
+          set chatting? false
           ask turtle partner [ set chatting? false ]
 
-          ;; Clean up tables for this handle
+          ;; Log cooldown of 10 ticks
+          set recent-conversations lput (list speaker partner 10) recent-conversations
+
+          ;; **Reset both ChatSessions to clear history**
+          ask turtle speaker [ set chat llm:create-session ]
+          ask turtle partner [ set chat llm:create-session ]
+
+          ;; Cleanup handle
           table:remove conv-speaker-map handle
           table:remove conv-partner-map handle
           table:remove conv-stage-map handle
           set conv-printed-labels remove handle conv-printed-labels
-          ;; Do NOT add to still-active-handles (conversation is finished)
         ]
       ]
     ] [
-      ;; Still in progress (LLM is streaming or waiting): keep handle
+      ;; Still in progress
       set still-active-handles lput handle still-active-handles
     ]
   ]
-
-  ;; Update the global list of active handles
   set conversation-handles still-active-handles
 
-  ;; 4. Move any turtles not currently chatting
+  ;; 4. Move turtles not chatting
   ask turtles with [ not chatting? ] [
     rt random 60 - 30
     fd 1
     stay-on-world-boundaries
   ]
+
+  ;; 5. Decay & filter cooldowns
+  set recent-conversations
+    map [
+      entry ->
+        (list
+          (first entry)
+          (item 1 entry)
+          ((item 2 entry) - 1)
+        )
+    ] recent-conversations
+
+  set recent-conversations
+    filter [
+      entry -> item 2 entry > 0
+    ] recent-conversations
 
   tick
 end
@@ -220,6 +273,20 @@ to stay-on-world-boundaries
   if xcor < -24 [ set xcor -24 ]
   if ycor >  24 [ set ycor  24 ]
   if ycor < -24 [ set ycor -24 ]
+end
+
+;;; -------------------------------------------------------------
+;;; COOLDOWN CHECK REPORTER
+;;; -------------------------------------------------------------
+to-report recently-chatted-with? [ a b ]
+  let matching
+    filter [
+      entry ->
+        ((first entry = a and item 1 entry = b)
+         or
+         (first entry = b and item 1 entry = a))
+    ] recent-conversations
+  report length matching > 0
 end
 @#$#@#$#@
 GRAPHICS-WINDOW

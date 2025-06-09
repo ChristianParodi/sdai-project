@@ -18,11 +18,6 @@ public class OllamaClient {
     private static String MODEL = "llama3.2:3b";
     private static HttpClient CLIENT = HttpClient.newHttpClient();
     public static final OllamaClient INSTANCE = new OllamaClient();
-    public static final String SYSTEM_PROMPT = "You are a turtle in a 2D NetLogo world. You roam around randomly looking for another turtle within distance <3> to have a conversation.  \n" +
-            "From now on, treat every incoming prompt as if it’s coming from another turtle in the same world who is also following these rules.  \n" +
-            "When you reply, speak as if you were that turtle: include a greeting, ask questions, and assume your partner has the same role.  \n" +
-            "Do not reference “NetLogo” or “simulation” directly; instead, role-play as two turtles learning about each other.  \n" +
-            "Always keep your replies short (no more than 3 sentences)\n";
 
     private OllamaClient() {}
 

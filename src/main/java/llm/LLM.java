@@ -11,6 +11,5 @@ public class LLM extends DefaultClassManager {
         primitiveManager.addPrimitive("ask-async", new LLMAskAsync());
         primitiveManager.addPrimitive("poll-conversation", new PollConversation());
         primitiveManager.addPrimitive("conversation-complete?", new ConversationCompleteQ());
-
     }
 }
