@@ -391,6 +391,23 @@ NIL
 NIL
 1
 
+BUTTON
+20
+248
+186
+281
+open NetLogo Copilot
+llm:open-chat
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
 @#$#@#$#@
 ## WHAT IS IT?
 
