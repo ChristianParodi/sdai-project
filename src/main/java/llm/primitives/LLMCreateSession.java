@@ -1,5 +1,6 @@
-package llm;
+package llm.primitives;
 
+import llm.ChatSession;
 import org.nlogo.api.*;
 import org.nlogo.core.Syntax;
 import org.nlogo.core.SyntaxJ;

@@ -1,6 +1,6 @@
-package llm;
+package llm.primitives;
 
-import ollama.OllamaClient;
+import llm.ChatSession;
 import ollama.TokenData;
 import org.nlogo.api.*;
 import org.nlogo.api.Reporter;

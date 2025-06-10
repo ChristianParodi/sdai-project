@@ -18,6 +18,7 @@ public class OllamaClient {
     private static String MODEL = "llama3.2:3b";
     private static HttpClient CLIENT = HttpClient.newHttpClient();
     public static final OllamaClient INSTANCE = new OllamaClient();
+    public static final String SYSTEM_PROMPT = "You are a NetLogo coding assistant. Your task is to translate plain-language modeling requests into correct, idiomatic NetLogo code.";
 
     private OllamaClient() {}
 
