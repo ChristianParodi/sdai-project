@@ -14,5 +14,6 @@ public class LLM extends DefaultClassManager {
         primitiveManager.addPrimitive("conversation-complete?", new ConversationCompleteQ());
         // chat
         primitiveManager.addPrimitive("open-chat", new LLMOpenChat());
+        primitiveManager.addPrimitive("run-code", new LLMRunCode());
     }
 }
