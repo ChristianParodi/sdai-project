@@ -3,15 +3,16 @@ package llm.ui;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.google.gson.JsonObject;
 import ollama.OllamaClient;
-import org.nlogo.api.ExtensionException;
 import org.nlogo.window.GUIWorkspace;
 
 import javax.swing.*;
 
-import java.io.StringBufferInputStream;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,28 +38,90 @@ public class ChatController {
         }
     }
 
-    private JsonObject buildSystemPrompt() {
-        String prompt = "You are a NetLogo coding assistant. " +
-                "Translate natural-language requests into valid NetLogo 6.4 code. " +
-                "Always return two sections: CODE and EXPLANATION in Markdown format. " +
-                "Make sure to surround the NetLogo code with ```netlogo and ```. This is crucial for this to work. " +
-                "\n\nCorrect NetLogo syntax examples:" +
-                "\n- Create turtles: 'create-turtles 10' or 'crt 10'" +
-                "\n- Set turtle color: 'set color red' or 'set color blue'" +
-                "\n- Move turtles: 'forward 3' or 'fd 3'" +
-                "\n- Ask turtles: 'ask turtles [ commands ]'" +
-                "\n- Print values: 'print sum [xcor] of turtles'" +
-                "\n- Conditional: 'if condition [ commands ]'" +
-                "\n\nExample:\nUser: create 10 blue turtles\n\n" +
-                "CODE:\n```netlogo\ncreate-turtles 10 [\n  set color blue\n]\n```\n" +
-                "EXPLANATION:\nCreates 10 turtles and sets their color to blue using the create-turtles primitive.\n\n"
-                +
-                "Use only valid NetLogo primitives. Never use made-up syntax like 'crt circle' or 'find (color red)'.";
+    private String buildSimplePrompt(String userQuery) {
+        StringBuilder prompt = new StringBuilder();
 
-        JsonObject sys = new JsonObject();
-        sys.addProperty("role", "system");
-        sys.addProperty("content", prompt);
-        return sys;
+        prompt.append(
+                "You are a NetLogo coding assistant. When asked to generate NetLogo code, respond in this exact format:\n\n");
+        prompt.append("CODE:\n```nlogo\n[your NetLogo code here]\n```\n\n");
+        prompt.append("EXPLANATION:\n[brief explanation of the generated code]\n\n");
+
+        // Add few-shot examples from CSV
+        prompt.append("Here are some examples to guide you:\n\n");
+        prompt.append(loadNetLogoExamples());
+
+        prompt.append("User request: ").append(userQuery);
+
+        return prompt.toString();
+    }
+
+    private String loadNetLogoExamples() {
+        StringBuilder examples = new StringBuilder();
+
+        try (InputStream is = getClass().getResourceAsStream("/netlogo_fine_tune.csv");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+
+            String line;
+            boolean isFirstLine = true;
+
+            while ((line = reader.readLine()) != null) {
+                if (isFirstLine) {
+                    isFirstLine = false;
+                    continue; // Skip header
+                }
+
+                // Parse CSV line (simple parsing, assumes no commas in quoted strings)
+                String[] parts = parseCsvLine(line);
+                if (parts.length >= 3) {
+                    String exampleNum = parts[0];
+                    String code = parts[1].replace("\"\"", "\""); // Unescape double quotes
+                    String annotation = parts[2].replace("\"\"", "\""); // Unescape double quotes
+
+                    examples.append("Example ").append(exampleNum).append(":\n");
+                    examples.append("Request: ").append(annotation).append("\n");
+                    examples.append("CODE:\n```nlogo\n").append(code).append("\n```\n\n");
+                }
+            }
+
+        } catch (IOException e) {
+            System.err.println("Error loading NetLogo examples: " + e.getMessage());
+            // Return a few basic examples if file loading fails
+            return "Example: Create 10 turtles\nCODE:\n```nlogo\ncrt 10\n```\n\n";
+        }
+
+        return examples.toString();
+    }
+
+    private String[] parseCsvLine(String line) {
+        List<String> result = new ArrayList<>();
+        boolean inQuotes = false;
+        StringBuilder currentField = new StringBuilder();
+
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    // Escaped quote
+                    currentField.append('"');
+                    i++; // Skip next quote
+                } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                // Field separator
+                result.add(currentField.toString().trim());
+                currentField.setLength(0);
+            } else {
+                currentField.append(c);
+            }
+        }
+
+        // Add the last field
+        result.add(currentField.toString().trim());
+
+        return result.toArray(new String[0]);
     }
 
     public ChatController(GUIWorkspace workspace) {
@@ -71,14 +134,8 @@ public class ChatController {
         frame.setLocationRelativeTo(null);
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        // initialize conversation with system prompt
-        messages.add(buildSystemPrompt());
-
-        JsonObject greet = new JsonObject();
-        greet.addProperty("role", "assistant");
-        greet.addProperty("content", "Hello! Ask me to generate or explain NetLogo code.");
-        messages.add(greet);
-        pane.appendAssistant(greet.get("content").getAsString());
+        // Simple greeting without system prompt
+        pane.appendAssistant("Hello! Ask me to generate or explain NetLogo code.");
 
         // Set up event listeners
         pane.getInputField().addActionListener(e -> send(pane.getInputField().getText()));
@@ -106,36 +163,6 @@ public class ChatController {
 
             System.out.println("DEBUG: Code history size: " + recentNetLogoCode.size());
         }
-    }
-
-    private List<String> buildContextMessages(String currentUserInput) {
-        List<String> contextMessages = new ArrayList<>();
-
-        // Always include system prompt
-        contextMessages.add("system: " + messages.get(0).get("content").getAsString());
-
-        // Include recent NetLogo code history if it exists
-        if (!recentNetLogoCode.isEmpty()) {
-            StringBuilder codeHistory = new StringBuilder();
-            codeHistory.append("assistant: Previous NetLogo code examples:\n");
-
-            for (int i = 0; i < recentNetLogoCode.size(); i++) {
-                codeHistory.append("Example ").append(i + 1).append(":\n");
-                codeHistory.append("```netlogo\n");
-                codeHistory.append(recentNetLogoCode.get(i));
-                codeHistory.append("\n```\n");
-                if (i < recentNetLogoCode.size() - 1) {
-                    codeHistory.append("\n");
-                }
-            }
-
-            contextMessages.add(codeHistory.toString());
-        }
-
-        // Add current user input
-        contextMessages.add("user: " + currentUserInput);
-
-        return contextMessages;
     }
 
     public void open() {
@@ -212,12 +239,6 @@ public class ChatController {
         pane.clearInput();
         pane.appendUser(trimmed);
 
-        // Add user message to messages (for display purposes only)
-        JsonObject userMsg = new JsonObject();
-        userMsg.addProperty("role", "user");
-        userMsg.addProperty("content", trimmed);
-        messages.add(userMsg);
-
         // Disable UI during generation
         pane.setUIEnabled(false);
 
@@ -228,17 +249,14 @@ public class ChatController {
             @Override
             protected String doInBackground() {
                 try {
-                    // Build simple context: only system prompt + current user request
-                    List<String> contextMessages = new ArrayList<>();
+                    // Build simple prompt with NetLogo assistant instructions
+                    String prompt = buildSimplePrompt(trimmed);
+                    List<String> emptyHistory = new ArrayList<>();
 
-                    // Add assistant prompt (always first message in our messages list)
-                    contextMessages.add("assistant: " + messages.get(0).get("content").getAsString());
-
-                    // Add current user input
-                    contextMessages.add("user: " + trimmed);
+                    System.out.println("DEBUG: Sending prompt: " + prompt);
 
                     Stream<String> tokens = OllamaClient.getInstance()
-                            .ask(trimmed, contextMessages)
+                            .ask(prompt, emptyHistory) // Send the formatted prompt
                             .map(tokenData -> tokenData.getToken());
 
                     StringBuilder reply = new StringBuilder();
@@ -272,10 +290,15 @@ public class ChatController {
                 try {
                     String fullReply = get();
                     if (fullReply != null) {
-                        // Extract and store NetLogo code for next context
+                        // Store the raw response for code extraction
                         extractAndStoreNetLogoCode(fullReply);
 
-                        // Add assistant response to messages (for display purposes only)
+                        // Add user and assistant messages to conversation history
+                        JsonObject userMsg = new JsonObject();
+                        userMsg.addProperty("role", "user");
+                        userMsg.addProperty("content", trimmed);
+                        messages.add(userMsg);
+
                         JsonObject assistantMsg = new JsonObject();
                         assistantMsg.addProperty("role", "assistant");
                         assistantMsg.addProperty("content", fullReply);
