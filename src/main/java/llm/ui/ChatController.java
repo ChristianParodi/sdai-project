@@ -27,6 +27,13 @@ public class ChatController {
     private final GUIWorkspace workspace;
     private final List<String> recentNetLogoCode = new ArrayList<>(); // Track last 5 code parts
     private static final int MAX_CODE_HISTORY = 5;
+    private String systemPrompt = "You are a NetLogo coding assistant. Respond ONLY with the following format and nothing else:\n\n"
+            +
+            "CODE:\n```netlogo\n[NetLogo code here]\n```\n\n" +
+            "Do NOT add greetings, sign-offs, extra commentary, or offer further help. " +
+            "Do NOT include anything outside the CODE section. " +
+            "Do NOT copy or cite the examples below. Generate a new answer for the user request. " +
+            "Here are some examples to guide you (do not copy them):\n\n" + loadNetLogoExamples();
 
     static {
         // Apply FlatLaf theme
@@ -36,23 +43,6 @@ public class ChatController {
         } catch (Exception e) {
             System.err.println("FlatLaf init failed: " + e.getMessage());
         }
-    }
-
-    private String buildSimplePrompt(String userQuery) {
-        StringBuilder prompt = new StringBuilder();
-
-        prompt.append(
-                "You are a NetLogo coding assistant. When asked to generate NetLogo code, respond in this exact format:\n\n");
-        prompt.append("CODE:\n```nlogo\n[your NetLogo code here]\n```\n\n");
-        prompt.append("EXPLANATION:\n[brief explanation of the generated code]\n\n");
-
-        // Add few-shot examples from CSV
-        prompt.append("Here are some examples to guide you:\n\n");
-        prompt.append(loadNetLogoExamples());
-
-        prompt.append("User request: ").append(userQuery);
-
-        return prompt.toString();
     }
 
     private String loadNetLogoExamples() {
@@ -75,19 +65,24 @@ public class ChatController {
                 if (parts.length >= 3) {
                     String exampleNum = parts[0];
                     String code = parts[1].replace("\"\"", "\""); // Unescape double quotes
+                    code = code.replace("\\n", "\n"); // Convert literal \n to real newlines
                     String annotation = parts[2].replace("\"\"", "\""); // Unescape double quotes
+                    annotation = annotation.replace("\\n", "\n"); // Convert literal \n to real newlines
 
                     examples.append("Example ").append(exampleNum).append(":\n");
-                    examples.append("Request: ").append(annotation).append("\n");
-                    examples.append("CODE:\n```nlogo\n").append(code).append("\n```\n\n");
+                    examples.append("CODE:\n```nlogo\n").append(code).append("\n```\n");
+
+                    examples.append("EXPLANATION:\n").append(annotation).append("\n\n");
                 }
             }
 
         } catch (IOException e) {
             System.err.println("Error loading NetLogo examples: " + e.getMessage());
             // Return a few basic examples if file loading fails
-            return "Example: Create 10 turtles\nCODE:\n```nlogo\ncrt 10\n```\n\n";
+            return "Example: Create 10 turtles\nCODE:\n```netlogo\ncrt 10\n```\n\n";
         }
+
+        System.out.println("DEBUG: Loaded NetLogo examples:\n" + examples);
 
         return examples.toString();
     }
@@ -249,14 +244,14 @@ public class ChatController {
             @Override
             protected String doInBackground() {
                 try {
-                    // Build simple prompt with NetLogo assistant instructions
-                    String prompt = buildSimplePrompt(trimmed);
+                    // Place system prompt and examples BEFORE the user query
+                    String prompt = systemPrompt + "\nUser request:\n" + trimmed;
                     List<String> emptyHistory = new ArrayList<>();
 
                     System.out.println("DEBUG: Sending prompt: " + prompt);
 
                     Stream<String> tokens = OllamaClient.getInstance()
-                            .ask(prompt, emptyHistory) // Send the formatted prompt
+                            .ask(prompt, emptyHistory) // Send the system prompt and user query
                             .map(tokenData -> tokenData.getToken());
 
                     StringBuilder reply = new StringBuilder();

@@ -1,48 +1,21 @@
 Example,Code,Annotation
-1,"to setup
-  clear-all
-  crt 100
-  reset-ticks
-end","Initializes the model by clearing everything, creating 100 turtles, and resetting the tick counter"
-2,"to go
-  ask turtles [
-    fd 1
-    rt random 10
-    lt random 10
-  ]
-  tick
-end","Moves each turtle forward 1, turns randomly up to 9° right and left, then advances the global tick"
-3,"to-report average [a b]
-  report (a + b) / 2
-end",Defines a reporter that returns the arithmetic mean of two inputs
-4,crt 100 [ fd 10 ],Creates 100 turtles at the origin and moves each forward 10 patches
-5,hatch 1 [ lt 45 fd 1 ],Each turtle creates one offspring; the new turtle turns left 45° and moves forward 1
-6,ask turtles [ set color blue ],Commands every turtle to change its color to blue
-7,ask patches with [ pxcor > 0 ] [ set pcolor green ],All patches whose x-coordinate is positive are colored green
-8,repeat 10 [ rt random 360 fd 1 ],Repeats 10 times: turn a random heading (0–359°) then move forward 1
-9,"ifelse pcolor = green
-  [ set pcolor red ]
-  [ set pcolor blue ]","If the patch is green, turn it red; otherwise turn it blue"
-10,"while [ any? other turtles-here ] [
-  fd 1
-]",Keeps moving forward until the turtle finds a patch with no other turtles
-11,"foreach [1 2 3] [ x -> show (word ""step "" x) ]","Prints “step 1”, “step 2”, and “step 3” by iterating over a list"
-12,show mean [sum assets] of turtles,Calculates and displays the average total assets across all turtles
-13,"extensions [table]
-
-let dict table:make
-table:put dict ""apple"" 5
-print table:get dict ""apple""","Creates a table, stores a key-value pair, and retrieves it"
-14,"to make-network
-  crt 3
-  ask turtle 0 [ create-links-with other turtles ]
-  repeat 30 [ layout-spring turtles links 0.2 5 1 ]
-end",Builds a fully connected 3-node network and arranges nodes using a spring layout
-15,"run ""random 10""",Executes the reporter `random 10` at runtime and discards the result
-16,"runresult ""count turtles""",Dynamically runs `count turtles` and returns the number of turtles
+1,"to setup\n  clear-all\n  crt 100\n  reset-ticks\nend","Initializes the model by clearing everything, creating 100 turtles, and resetting the tick counter"
+2,"to go\n  ask turtles [\n    fd 1\n    rt random 10\n    lt random 10\n  ]\n  tick\nend","Moves each turtle forward 1, turns randomly up to 9° right and left, then advances the global tick"
+3,"to-report average [a b]\n  report (a + b) / 2\nend","Defines a reporter that returns the arithmetic mean of two inputs"
+4,"crt 100 [ fd 10 ]","Creates 100 turtles at the origin and moves each forward 10 patches"
+5,"hatch 1 [ lt 45 fd 1 ]","Each turtle creates one offspring; the new turtle turns left 45° and moves forward 1"
+6,"ask turtles [ set color blue ]","Commands every turtle to change its color to blue"
+7,"ask patches with [ pxcor > 0 ] [ set pcolor green ]","All patches whose x-coordinate is positive are colored green"
+8,"repeat 10 [ rt random 360 fd 1 ]","Repeats 10 times: turn a random heading (0–359°) then move forward 1"
+9,"ifelse pcolor = green\n  [ set pcolor red ]\n  [ set pcolor blue ]","If the patch is green, turn it red; otherwise turn it blue"
+10,"while [ any? other turtles-here ] [\n  fd 1\n]","Keeps moving forward until the turtle finds a patch with no other turtles"
+11,"foreach [1 2 3] [ x -> show (word ""step "" x) ]","Prints ""step 1"", ""step 2"", and ""step 3"" by iterating over a list"
+12,"show mean [sum assets] of turtles","Calculates and displays the average total assets across all turtles"
+13,"extensions [table]\n\nlet dict table:make\ntable:put dict ""apple"" 5\nprint table:get dict ""apple""","Creates a table, stores a key-value pair, and retrieves it"
+14,"to make-network\n  crt 3\n  ask turtle 0 [ create-links-with other turtles ]\n  repeat 30 [ layout-spring turtles links 0.2 5 1 ]\nend","Builds a fully connected 3-node network and arranges nodes using a spring layout"
+15,"run ""random 10""","Executes the reporter `random 10` at runtime and discards the result"
+16,"runresult ""count turtles""","Dynamically runs `count turtles` and returns the number of turtles"
 17,"import-pcolors ""background.jpg""","Loads an image into the patch grid, mapping pixel colors to pcolor"
-18,"export-plot ""Population"" ""pop.csv""",Exports all plotted points from the plot named “Population” to a CSV file
-19,"to-report first-turtle?
-  report who = min [who] of turtles
-end",Reports true only for the turtle with the smallest who number
-20,ask turtles [ if count turtles-here > 1 [ die ] ],Each turtle checks for collision and removes itself if sharing the patch
+18,"export-plot ""Population"" ""pop.csv""","Exports all plotted points from the plot named ""Population"" to a CSV file"
+19,"to-report first-turtle?\n  report who = min [who] of turtles\nend","Reports true only for the turtle with the smallest who number"
+20,"ask turtles [ if count turtles-here > 1 [ die ] ]","Each turtle checks for collision and removes itself if sharing the patch"

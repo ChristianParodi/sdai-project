@@ -19,12 +19,12 @@ public class LLMAskSync implements Reporter {
             ChatSession session = (ChatSession) args[0].get();
             String prompt = args[1].getString();
 
-            // First message
-            Map<String, String> turtleMessage = new HashMap<>();
-            turtleMessage.put("role", "turtle");
-            turtleMessage.put("content", prompt);
+            // Use the correct role for the message
+            Map<String, String> message = new HashMap<>();
+            message.put("role", session.getRole());
+            message.put("content", prompt);
 
-            Stream<TokenData> responseTokens = session.ask(turtleMessage);
+            Stream<TokenData> responseTokens = session.ask(message);
 
             // collect raw answer
             StringBuilder builder = new StringBuilder();
@@ -44,7 +44,7 @@ public class LLMAskSync implements Reporter {
     @Override
     public Syntax getSyntax() {
         int[] input = new int[] { Syntax.WildcardType(), Syntax.StringType() };
-        int output  = Syntax.StringType();
+        int output = Syntax.StringType();
         return SyntaxJ.reporterSyntax(input, output);
     }
 }
