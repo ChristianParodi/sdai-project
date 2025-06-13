@@ -1,4 +1,4 @@
-package llm;
+package llm.primitives;
 
 import org.nlogo.api.*;
 import org.nlogo.api.Reporter;

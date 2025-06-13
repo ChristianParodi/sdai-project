@@ -15,26 +15,20 @@ import java.util.stream.*;
 
 public class OllamaClient {
     private static String API_URI = "http://localhost:11434/api/generate";
-    private static String MODEL = "llama3.2:3b";
+    private static String MODEL = "catsarethebest/llama3.2-4oClaude";
     private static HttpClient CLIENT = HttpClient.newHttpClient();
     public static final OllamaClient INSTANCE = new OllamaClient();
 
-    private OllamaClient() {}
+    private OllamaClient() {
+    }
 
     public static OllamaClient getInstance() {
         return INSTANCE;
     }
 
     public Stream<TokenData> ask(String prompt, List<String> history) throws Exception {
-        // combine history if needed
-        StringBuilder fullPrompt = new StringBuilder();
-        for (String line : history) {
-            fullPrompt.append(line).append("\\n");
-        }
-        fullPrompt.append("You: ").append(prompt).append("\\n");
-
-        // use your stream-based Ollama client here (stream or full response)
-        return OllamaClient.getInstance().generate(fullPrompt.toString());
+        // No need to combine history; just send the prompt
+        return OllamaClient.generate(prompt);
     }
 
     private static class StreamChunk {
@@ -45,7 +39,7 @@ public class OllamaClient {
         JsonObject jsonObject = new JsonObject();
         jsonObject.addProperty("model", OllamaClient.MODEL);
         jsonObject.addProperty("prompt", prompt);
-        jsonObject.addProperty("stream", false);
+        jsonObject.addProperty("stream", true); // Enable streaming for real-time token output
         String json = new Gson().toJson(jsonObject);
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -59,7 +53,7 @@ public class OllamaClient {
 
         var statusCode = response.statusCode();
 
-        if(statusCode != 200) {
+        if (statusCode != 200) {
             BufferedReader errReader = new BufferedReader(
                     new InputStreamReader(response.body(), StandardCharsets.UTF_8));
             StringBuilder sbErr = new StringBuilder();
@@ -80,17 +74,17 @@ public class OllamaClient {
 
         return StreamSupport.stream(
                 Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED),
-                false
-        ).onClose(() -> {
-            try {
-                reader.close();
-            } catch (IOException ignored) {}
-        });
+                false).onClose(() -> {
+                    try {
+                        reader.close();
+                    } catch (IOException ignored) {
+                    }
+                });
     }
 
     /*
-    *   Iterator definition for TokenData (needed to stream answers)
-    */
+     * Iterator definition for TokenData (needed to stream answers)
+     */
     private static Iterator<TokenData> getTokenDataIterator(BufferedReader reader, Gson gson) {
         Iterator<TokenData> iterator = new Iterator<>() {
             String nextLine = null;
@@ -125,8 +119,7 @@ public class OllamaClient {
         try {
             generate(prompt)
                     .forEach(token -> System.out.print(token.getToken()));
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
