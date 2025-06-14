@@ -14,8 +14,6 @@ import java.util.*;
 import java.util.stream.*;
 
 public class OllamaClient {
-    private static String API_URI = "http://localhost:11434/api/generate";
-    private static String MODEL = "catsarethebest/llama3.2-4oClaude";
     private static HttpClient CLIENT = HttpClient.newHttpClient();
     public static final OllamaClient INSTANCE = new OllamaClient();
 
@@ -37,13 +35,13 @@ public class OllamaClient {
 
     public static Stream<TokenData> generate(String prompt) throws Exception {
         JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty("model", OllamaClient.MODEL);
+        jsonObject.addProperty("model", OllamaConfig.MODEL);
         jsonObject.addProperty("prompt", prompt);
         jsonObject.addProperty("stream", true); // Enable streaming for real-time token output
         String json = new Gson().toJson(jsonObject);
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(new URI(OllamaClient.API_URI))
+                .uri(new URI(OllamaConfig.API_URI))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                 .build();

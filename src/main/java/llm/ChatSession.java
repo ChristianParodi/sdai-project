@@ -8,11 +8,9 @@ import org.nlogo.core.*;
 public class ChatSession implements ExtensionObject {
     private final List<Map<String, String>> chatHistory = new ArrayList<>(); // Role-tagged history
     private final List<String> plainHistory = new ArrayList<>(); // raw history to pass to Ollama
-
     private final String role;
     private final String systemPrompt;
 
-    // New constructor: role + systemPrompt
     public ChatSession(String role, String systemPrompt) {
         this.role = role;
         this.systemPrompt = systemPrompt;

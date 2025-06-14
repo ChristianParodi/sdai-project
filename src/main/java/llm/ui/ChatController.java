@@ -6,11 +6,6 @@ import ollama.OllamaClient;
 import org.nlogo.window.GUIWorkspace;
 
 import javax.swing.*;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -27,13 +22,7 @@ public class ChatController {
     private final GUIWorkspace workspace;
     private final List<String> recentNetLogoCode = new ArrayList<>(); // Track last 5 code parts
     private static final int MAX_CODE_HISTORY = 5;
-    private String systemPrompt = "You are a NetLogo coding assistant. Respond ONLY with the following format and nothing else:\n\n"
-            +
-            "CODE:\n```netlogo\n[NetLogo code here]\n```\n\n" +
-            "Do NOT add greetings, sign-offs, extra commentary, or offer further help. " +
-            "Do NOT include anything outside the CODE section. " +
-            "Do NOT copy or cite the examples below. Generate a new answer for the user request. " +
-            "Here are some examples to guide you (do not copy them):\n\n" + loadNetLogoExamples();
+    private String systemPrompt = ChatControllerConfig.DEFAULT_SYSTEM_PROMPT;
 
     static {
         // Apply FlatLaf theme
@@ -43,99 +32,6 @@ public class ChatController {
         } catch (Exception e) {
             System.err.println("FlatLaf init failed: " + e.getMessage());
         }
-    }
-
-    private String loadNetLogoExamples() {
-        StringBuilder examples = new StringBuilder();
-
-        try (InputStream is = getClass().getResourceAsStream("/netlogo_fine_tune.csv");
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
-
-            String line;
-            boolean isFirstLine = true;
-
-            while ((line = reader.readLine()) != null) {
-                if (isFirstLine) {
-                    isFirstLine = false;
-                    continue; // Skip header
-                }
-
-                // Parse CSV line (simple parsing, assumes no commas in quoted strings)
-                String[] parts = parseCsvLine(line);
-                if (parts.length >= 3) {
-                    String exampleNum = parts[0];
-                    String code = parts[1].replace("\"\"", "\""); // Unescape double quotes
-                    code = code.replace("\\n", "\n"); // Convert literal \n to real newlines
-                    String annotation = parts[2].replace("\"\"", "\""); // Unescape double quotes
-                    annotation = annotation.replace("\\n", "\n"); // Convert literal \n to real newlines
-
-                    examples.append("Example ").append(exampleNum).append(":\n");
-                    examples.append("CODE:\n```nlogo\n").append(code).append("\n```\n");
-
-                    examples.append("EXPLANATION:\n").append(annotation).append("\n\n");
-                }
-            }
-
-        } catch (IOException e) {
-            System.err.println("Error loading NetLogo examples: " + e.getMessage());
-            // Return a few basic examples if file loading fails
-            return "Example: Create 10 turtles\nCODE:\n```netlogo\ncrt 10\n```\n\n";
-        }
-
-        System.out.println("DEBUG: Loaded NetLogo examples:\n" + examples);
-
-        return examples.toString();
-    }
-
-    private String[] parseCsvLine(String line) {
-        List<String> result = new ArrayList<>();
-        boolean inQuotes = false;
-        StringBuilder currentField = new StringBuilder();
-
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-
-            if (c == '"') {
-                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    // Escaped quote
-                    currentField.append('"');
-                    i++; // Skip next quote
-                } else {
-                    // Toggle quote state
-                    inQuotes = !inQuotes;
-                }
-            } else if (c == ',' && !inQuotes) {
-                // Field separator
-                result.add(currentField.toString().trim());
-                currentField.setLength(0);
-            } else {
-                currentField.append(c);
-            }
-        }
-
-        // Add the last field
-        result.add(currentField.toString().trim());
-
-        return result.toArray(new String[0]);
-    }
-
-    public ChatController(GUIWorkspace workspace) {
-        this.workspace = workspace;
-        pane = new ChatPane();
-        frame = new JFrame("NetLogo Copilot Chat");
-        frame.add(pane);
-        frame.pack();
-        frame.setSize(400, 500);
-        frame.setLocationRelativeTo(null);
-        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-        // Simple greeting without system prompt
-        pane.appendAssistant("Hello! Ask me to generate or explain NetLogo code.");
-
-        // Set up event listeners
-        pane.getInputField().addActionListener(e -> send(pane.getInputField().getText()));
-        pane.getSendButton().addActionListener(e -> send(pane.getInputField().getText()));
-        pane.getRunCodeButton().addActionListener(e -> runGeneratedCode());
     }
 
     private void extractAndStoreNetLogoCode(String response) {
@@ -158,6 +54,25 @@ public class ChatController {
 
             System.out.println("DEBUG: Code history size: " + recentNetLogoCode.size());
         }
+    }
+
+    public ChatController(GUIWorkspace workspace) {
+        this.workspace = workspace;
+        pane = new ChatPane();
+        frame = new JFrame("NetLogo Copilot Chat");
+        frame.add(pane);
+        frame.pack();
+        frame.setSize(400, 500);
+        frame.setLocationRelativeTo(null);
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+        // Simple greeting without system prompt
+        pane.appendAssistant("Hello! Ask me to generate or explain NetLogo code.");
+
+        // Set up event listeners
+        pane.getInputField().addActionListener(e -> send(pane.getInputField().getText()));
+        pane.getSendButton().addActionListener(e -> send(pane.getInputField().getText()));
+        pane.getRunCodeButton().addActionListener(e -> runGeneratedCode());
     }
 
     public void open() {

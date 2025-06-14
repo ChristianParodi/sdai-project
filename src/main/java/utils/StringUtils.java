@@ -3,7 +3,6 @@ package utils;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class StringUtils {
 
     public static String unescape(String raw) {
@@ -13,6 +12,7 @@ public class StringUtils {
         String result = raw.replace("\\n", "\n");
         result = result.replace("\\t", "\t");
         result = result.replace("\\r", "\r");
+        result = result.replace("\"\"", "\""); // Unescape double quotes
         return result;
     }
 
@@ -53,5 +53,29 @@ public class StringUtils {
         }
 
         return String.join("\n", wrappedParagraphs);
+    }
+
+    public static String[] parseCsvLine(String line) {
+        List<String> result = new ArrayList<>();
+        boolean inQuotes = false;
+        StringBuilder currentField = new StringBuilder();
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    currentField.append('"');
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                result.add(currentField.toString().trim());
+                currentField.setLength(0);
+            } else {
+                currentField.append(c);
+            }
+        }
+        result.add(currentField.toString().trim());
+        return result.toArray(new String[0]);
     }
 }
